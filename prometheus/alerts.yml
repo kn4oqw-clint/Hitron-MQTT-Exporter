@@ -1,0 +1,80 @@
+# Starter alert rules for the Hitron exporter.
+# Goal: catch line degradation BEFORE it becomes an outage, and notice a
+# wedged/rebooted modem. Thresholds are conservative DOCSIS rules of thumb --
+# tune to your plant after watching a few days of trend.
+groups:
+  - name: hitron
+    rules:
+      # --- exporter / modem reachability -----------------------------------
+      - alert: HitronExporterDown
+        expr: up{job="hitron"} == 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Hitron exporter is not scrapeable"
+
+      - alert: HitronPollFailing
+        expr: hitron_up == 0
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Exporter is up but the modem web UI isn't answering (possible wedge)"
+          description: "If this persists, the CODA management stack may be locked up and need a power-cycle."
+
+      - alert: HitronModemRebooted
+        expr: hitron_system_uptime_seconds < 600
+        for: 0m
+        labels: { severity: info }
+        annotations:
+          summary: "Hitron modem uptime < 10m -- it rebooted or was power-cycled"
+
+      # --- DOCSIS registration (earliest warning of trouble) ---------------
+      - alert: HitronDocsisStageDegraded
+        expr: hitron_docsis_stage_ok == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "DOCSIS stage {{ $labels.stage }} is not healthy"
+          description: "A ranging/registration/networkAccess drop usually precedes or accompanies an outage."
+
+      - alert: HitronLinkDown
+        expr: hitron_link_up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Modem ethernet link is down"
+
+      # --- RF signal quality (trend-based early warning) -------------------
+      # Downstream SNR should sit well above ~30 dB for 256-QAM; sustained
+      # sag toward 30 means trouble.
+      - alert: HitronLowDownstreamSNR
+        expr: min(hitron_ds_snr_db) < 33
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "A downstream channel SNR has dropped below 33 dB"
+
+      # Downstream RX power outside roughly -7..+7 dBmV is out of spec.
+      - alert: HitronDownstreamPowerOutOfSpec
+        expr: max(abs(hitron_ds_signal_strength_dbmv)) > 7
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "A downstream channel RX power is outside ±7 dBmV"
+
+      # Upstream TX power creeping high (>50 dBmV) means the plant is struggling.
+      - alert: HitronHighUpstreamPower
+        expr: max(hitron_us_signal_strength_dbmv) > 50 or max(hitron_us_ofdma_power_dbmv) > 50
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Upstream TX power above 50 dBmV -- upstream plant degrading"
+
+      # Rising UNcorrectable codewords = real, user-visible errors getting through.
+      - alert: HitronUncorrectablesRising
+        expr: sum(rate(hitron_ds_uncorrectables_total[15m])) + sum(rate(hitron_ds_ofdm_uncorrectables_total[15m])) > 0
+        for: 15m
+        labels: { severity: warning }
+        annotations:
+          summary: "Downstream uncorrectable FEC errors are accumulating"
+          description: "Sustained uncorrectables indicate a physical-layer problem (noise, bad connector, ingress)."

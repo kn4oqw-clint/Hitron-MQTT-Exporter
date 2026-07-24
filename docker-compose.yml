@@ -1,16 +1,15 @@
-version: "3.8"
 services:
-  hitron-scraper:
+  hitron-exporter:
     build: .
-    container_name: hitron-scraper
+    container_name: hitron-exporter
     restart: unless-stopped
+    ports:
+      - "9705:9705"          # Prometheus scrape target
     environment:
       - TZ=America/Chicago
+      - MODEM_URL=https://192.168.100.1
+      - MIN_POLL_INTERVAL=300  # never poll the modem faster than this (seconds)
+      # - LISTEN_PORT=9705
+      # - REQUEST_TIMEOUT=10
     volumes:
       - /etc/localtime:/etc/localtime:ro
-    networks:
-      - mqtt_net
-
-networks:
-  mqtt_net:
-    external: true
