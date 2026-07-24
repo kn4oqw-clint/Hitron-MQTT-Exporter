@@ -1,0 +1,8 @@
+# Add to your Prometheus prometheus.yml under scrape_configs:
+# Scrape interval can be as low as you like; the exporter still only polls the
+# modem once per MIN_POLL_INTERVAL and serves cache in between.
+scrape_configs:
+  - job_name: hitron
+    scrape_interval: 60s
+    static_configs:
+      - targets: ["HITRON_EXPORTER_HOST:9705"]

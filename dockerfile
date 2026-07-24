@@ -13,5 +13,8 @@ COPY . .
 RUN apk add --no-cache dumb-init
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 
-# Entry command
+# Prometheus metrics endpoint
+EXPOSE 9705
+
+# Entry command -- long-running exporter, not a one-shot script
 CMD ["python", "main.py"]
